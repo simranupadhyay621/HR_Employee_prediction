@@ -1,46 +1,59 @@
 import streamlit as st
 import pandas as pd
+import pickle
+
+model = pickle.load(open("model.pkl","rb"))
+scaler = pickle.load(open("scaler.pkl","rb"))
+encoders = pickle.load(open("encoders.pkl","rb"))
+
+df = pd.read_csv("Human_Resources.csv")
 
 st.set_page_config(
-    page_title="HR Employee Attrition Dashboard",
-    page_icon="👨‍💼",
+    page_title="HR Attrition Prediction",
     layout="wide"
 )
 
-st.title("👨‍💼 HR Employee Attrition Prediction System")
+st.title("HR Employee Attrition Prediction")
 
-st.markdown("---")
+st.write("Enter employee information")
 
-st.write("""
-### Project Overview
+feature_df = df.drop(
+    ["Attrition",
+     "EmployeeCount",
+     "EmployeeNumber",
+     "Over18",
+     "StandardHours"],
+     axis=1
+)
 
-This dashboard predicts whether an employee is likely to leave the company.
+user_data = {}
 
-### Features
+for col in feature_df.columns:
 
-- 📊 Exploratory Data Analysis
-- 🤖 Employee Attrition Prediction
-- 📈 Model Performance
-- 📉 Feature Importance
-- 📋 HR Business Insights
+    if feature_df[col].dtype=="object":
+        user_data[col]=st.selectbox(
+            col,
+            feature_df[col].unique()
+        )
 
-Use the sidebar to navigate between pages.
-""")
+    else:
+        user_data[col]=st.number_input(
+            col,
+            value=float(feature_df[col].median())
+        )
 
-df = pd.read_csv("clean_hr_data.csv")
+input_df = pd.DataFrame([user_data])
 
-st.markdown("---")
+for col in input_df.select_dtypes(include="object").columns:
+    input_df[col]=encoders[col].transform(input_df[col])
 
-col1,col2,col3,col4 = st.columns(4)
+scaled = scaler.transform(input_df)
 
-col1.metric("Employees",len(df))
-col2.metric("Departments",df["Department"].nunique())
-col3.metric("Job Roles",df["JobRole"].nunique())
-col4.metric("Attrition Rate",
-            f"{round(df['Attrition'].mean()*100,2)}%")
+prediction = model.predict(scaled)
 
-st.markdown("---")
+if st.button("Predict"):
 
-st.subheader("Dataset Preview")
-
-st.dataframe(df.head())
+    if prediction[0]==1:
+        st.error("Employee is likely to leave.")
+    else:
+        st.success("Employee is likely to stay.")
